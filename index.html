@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="Explore the BILT Blue, BILT Obsidian, and BILT Palladium cards." />
+    <title>BILT Cards — Interactive object study</title>
+    <link rel="preconnect" href="https://ajax.googleapis.com" />
+    <link rel="stylesheet" href="./styles.css?v=bilt-card-selector-1" />
+    <script async src="https://ga.jspm.io/npm:es-module-shims@2.6.2/dist/es-module-shims.js"></script>
+    <script type="importmap">
+      {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.174.0/build/three.module.min.js"}}
+    </script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.1.0/dist/model-viewer-module.min.js"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer-effects@1.5.0/dist/model-viewer-effects.min.js"></script>
+    <script src="./app.js?v=blue-highres-1" defer></script>
+    <script type="module" src="./stickers.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="wordmark" href="#top" aria-label="Obsidian home">
+        <span class="wordmark-mark" aria-hidden="true"></span>
+        <span>STUDIO / OBJECTS</span>
+      </a>
+      <a class="top-link" href="#details">Model details <span aria-hidden="true">↘</span></a>
+    </header>
+    <main id="top">
+      <section class="hero" aria-labelledby="page-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="eyebrow-dot"></span> INTERACTIVE OBJECT STUDY</p>
+          <h1 id="page-title">BILT OBSIDIAN<span class="period">.</span></h1>
+          <p class="intro">Precision, made tangible.<br />A closer look at every edge.</p>
+          <a class="text-link" href="#details">Explore the details <span aria-hidden="true">↓</span></a>
+          <nav class="card-selector" aria-label="Choose a BILT card">
+            <p class="card-selector-label">SELECT A CARD</p>
+            <div class="card-selector-options">
+              <button class="card-option" type="button" data-card-variant data-title="BILT Blue" data-alt="BILT Blue card in a centered 3D view" data-src="./BILT_Blue_HighRes.glb?v=blue-highres-1" data-camera-target="auto auto auto" data-orientation="0deg -15deg -15deg" data-parts="3 objects" data-triangles="159,819 triangles" data-size="82.8 MB">
+                <span class="card-option-name">BILT Blue</span>
+                <span class="card-option-status">View card</span>
+              </button>
+              <button class="card-option" type="button" data-card-variant data-title="BILT Obsidian" data-alt="BILT Obsidian card" data-src="./obsidian_front.gltf?v=roughness-61062a9" data-camera-target="0.0960m -0.0629m -0.0104m" data-orientation="0deg -15deg -15deg" data-parts="12 objects" data-triangles="1,944,728 triangles" data-size="23.4 MB" aria-pressed="true">
+                <span class="card-option-name">BILT Obsidian</span>
+                <span class="card-option-status">Selected</span>
+              </button>
+              <button class="card-option" type="button" data-card-variant data-title="BILT Palladium" data-alt="BILT Palladium card" disabled>
+                <span class="card-option-name">BILT Palladium</span>
+                <span class="card-option-status">View card</span>
+              </button>
+            </div>
+          </nav>
+          <section class="sticker-tools" aria-labelledby="sticker-heading">
+            <h2 id="sticker-heading">Make it yours.</h2>
+            <p>Pick a sticker, then click the card to attach it.</p>
+            <div class="sticker-picker" aria-label="Choose a sticker"></div>
+            <label class="sticker-upload">Import your own sticker
+              <input id="sticker-file" type="file" accept="image/png,image/webp,image/jpeg" />
+            </label>
+            <div class="sticker-adjustments">
+              <label>Size <input id="sticker-size" type="range" min="10" max="55" value="28" /></label>
+              <label>Rotation <input id="sticker-rotation" type="range" min="-180" max="180" value="-12" /></label>
+            </div>
+            <div class="sticker-actions"><button id="sticker-done" type="button">Done placing</button><button id="sticker-undo" type="button">Undo last</button><button id="sticker-clear" type="button">Clear card</button></div>
+            <p id="sticker-status" role="status" aria-live="polite">Loading card…</p>
+          </section>
+        </div>
+        <div class="viewer-shell">
+          <div class="viewer-stage">
+            <model-viewer
+              id="obsidian-model"
+              style="transform: scale(0.65); transform-origin: center center;"
+              src="./obsidian_front.gltf?v=roughness-61062a9"
+              alt="Obsidian card in a centered 3D view"
+              camera-orbit="0deg 82deg 110%"
+              orientation="0deg -15deg -15deg"
+              interpolation-decay="60"
+              camera-target="0.0960m -0.0629m -0.0104m"
+              field-of-view="28deg"
+              environment-image="./HDR_Light_Studio_Free_HDRI_Design_07_down30_left60.hdr"
+              exposure="1.2"
+              shadow-intensity="1.1"
+              tone-mapping="aces"
+              loading="eager"
+            >
+              <effect-composer render-mode="quality" msaa="2">
+                <bloom-effect strength="0.28" threshold="0.78" radius="0.6" smoothing="0.08"></bloom-effect>
+                <color-grade-effect></color-grade-effect>
+              </effect-composer>
+              <div class="load-state" slot="poster">
+                <span class="loader-ring" aria-hidden="true"></span>
+                <span>Loading the model</span>
+              </div>
+              <div class="progress-track" slot="progress-bar" aria-hidden="true" style="display: none;">
+                <span class="progress-fill"></span>
+              </div>
+            </model-viewer>
+          </div>
+        </div>
+      </section>
+      <section class="details" id="details" aria-labelledby="details-title">
+        <div class="details-heading">
+          <p class="eyebrow">BUILT FOR THE WEB</p>
+          <h2 id="details-title">Made to be explored.</h2>
+        </div>
+        <p class="details-copy">
+          BILT Obsidian is presented as a high-detail 3D model, composed for the web.
+        </p>
+        <div class="spec-grid" aria-label="Model specifications">
+          <div class="spec"><span class="spec-label">FORMAT</span><strong>glTF 2.0</strong></div>
+          <div class="spec"><span class="spec-label">SCENE PARTS</span><strong id="spec-parts">12 objects</strong></div>
+          <div class="spec"><span class="spec-label">GEOMETRY</span><strong id="spec-geometry">1,944,728 triangles</strong></div>
+          <div class="spec"><span class="spec-label">DOWNLOAD</span><strong id="spec-download">23.4 MB</strong></div>
+        </div>
+      </section>
+    </main>
+    <footer class="footer">
+      <span>BILT / 3D OBJECT STUDY</span>
+      <a href="#top">Back to top ↑</a>
+    </footer>
+  </body>
+</html>
