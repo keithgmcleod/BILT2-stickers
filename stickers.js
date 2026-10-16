@@ -32,7 +32,9 @@ function pointerRay(event) {
 }
 function pickSticker(ray) {
   const hits = ray.intersectObjects(entries().map(entry => entry.decal).filter(Boolean), false);
+  const surfaceHit = hits.length ? ray.intersectObjects(meshes, false)[0] : null;
   for (const hit of hits) {
+    if (surfaceHit && hit.distance > surfaceHit.distance + 0.0001) continue;
     const texture = hit.object.material.map;
     if (!alphaMasks.has(texture)) {
       const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
@@ -56,10 +58,16 @@ function selectSticker(entry) {
 function moveDraggedSticker() {
   dragFrame = 0;
   if (!drag || !ready) return;
-  const hit = pointerRay(drag.pointer).intersectObjects(meshes, false).find(result => result.face);
-  if (!hit) return; // Keep the last valid placement when the pointer leaves the card.
+  const hit = pointerRay(drag.pointer).ray.intersectPlane(drag.plane, new THREE.Vector3());
+  if (!hit) return;
   const target = meshes[drag.entry.meshIndex];
-  drag.entry.point.copy(target.worldToLocal(hit.point.clone().add(drag.offset)));
+  const candidate = hit.add(drag.offset);
+  const edge = boundaryAt(drag.frame, candidate);
+  const image = drag.entry.texture.image;
+  const width = drag.frame.width * drag.entry.size / 100;
+  const limit = Math.min(width, width * image.height / image.width) * 0.25;
+  if (edge.distance > limit) candidate.addScaledVector(edge.outward, limit - edge.distance);
+  drag.entry.point.copy(target.worldToLocal(candidate));
   rebuild(drag.entry);
 }
 function finishDrag(event) {
@@ -79,11 +87,15 @@ viewer.addEventListener('pointerdown', event => {
   if (!ready || event.button !== 0 || !event.isPrimary) return;
   const ray = pointerRay(event), entry = pickSticker(ray);
   if (!entry) { selectedEntry = null; suppressClickUntil = 0; return; }
-  const hit = ray.intersectObjects(meshes, false).find(result => result.face);
-  if (!hit) return;
   selectSticker(entry);
-  const center = meshes[entry.meshIndex].localToWorld(entry.point.clone());
-  drag = { id: event.pointerId, entry, offset: center.sub(hit.point), pointer: { clientX: event.clientX, clientY: event.clientY } };
+  const target = meshes[entry.meshIndex];
+  const center = target.localToWorld(entry.point.clone());
+  const reference = entry.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(target.matrixWorld));
+  const frame = cardFrame(reference);
+  const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(frame.normal, center);
+  const hit = ray.ray.intersectPlane(plane, new THREE.Vector3());
+  if (!hit) return;
+  drag = { id: event.pointerId, entry, frame, plane, offset: center.sub(hit), pointer: { clientX: event.clientX, clientY: event.clientY } };
   viewer.classList.add('dragging-sticker'); viewer.setPointerCapture(event.pointerId);
   event.preventDefault();
 });
@@ -116,7 +128,42 @@ function cardFrame(referenceNormal) {
   if (normal.dot(referenceNormal) < 0) normal.negate();
   const right = axis(dimensions.axes[0]).transformDirection(body.matrixWorld);
   const up = normal.clone().cross(right).normalize();
-  return { normal, right, up, width: dimensions.size[dimensions.axes[0]] };
+  const center = body.localToWorld(body.geometry.boundingBox.getCenter(new THREE.Vector3()));
+  const min = new THREE.Vector3(Infinity, Infinity, Infinity), max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+  const corner = new THREE.Vector3(), relative = new THREE.Vector3();
+  for (const mesh of meshes) {
+    const box = mesh.geometry.boundingBox;
+    const size = box.getSize(new THREE.Vector3()).multiply(mesh.getWorldScale(new THREE.Vector3()));
+    const sorted = [size.x, size.y, size.z].sort((a, b) => b - a);
+    if (sorted[0] * sorted[1] < area * 0.8) continue;
+    for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+      relative.copy(corner.set(x, y, z).applyMatrix4(mesh.matrixWorld)).sub(center);
+      const p = new THREE.Vector3(relative.dot(right), relative.dot(up), relative.dot(normal));
+      min.min(p); max.max(p);
+    }
+  }
+  const offset = min.clone().add(max).multiplyScalar(0.5);
+  center.addScaledVector(right, offset.x).addScaledVector(up, offset.y).addScaledVector(normal, offset.z);
+  const width = max.x - min.x, height = max.y - min.y, thickness = max.z - min.z;
+  return { normal, right, up, center, width, height, front: thickness / 2, back: -thickness / 2, radius: height * 0.045 };
+}
+
+// Signed distance and nearest boundary of the card's rounded rectangle. Its
+// outward direction also defines the cross-section used to turn onto the back.
+function boundaryAt(frame, point, result = { outward: new THREE.Vector3() }) {
+  const dx = point.x - frame.center.x, dy = point.y - frame.center.y, dz = point.z - frame.center.z;
+  const x = dx * frame.right.x + dy * frame.right.y + dz * frame.right.z;
+  const y = dx * frame.up.x + dy * frame.up.y + dz * frame.up.z;
+  const qx = Math.abs(x) - (frame.width / 2 - frame.radius);
+  const qy = Math.abs(y) - (frame.height / 2 - frame.radius);
+  const ax = Math.max(qx, 0), ay = Math.max(qy, 0), length = Math.hypot(ax, ay);
+  const distance = length + Math.min(Math.max(qx, qy), 0) - frame.radius;
+  let nx, ny;
+  if (length > 0) { nx = Math.sign(x) * ax / length; ny = Math.sign(y) * ay / length; }
+  else { nx = qx > qy ? Math.sign(x) : 0; ny = qx > qy ? 0 : Math.sign(y); }
+  result.x = x; result.y = y; result.distance = distance; result.nx = nx; result.ny = ny;
+  result.outward.copy(frame.right).multiplyScalar(nx).addScaledVector(frame.up, ny);
+  return result;
 }
 
 // Render the complete card into an orthographic height field. This includes
@@ -237,13 +284,18 @@ function rebuild(entry) {
   const image = entry.texture.image;
   const height = width * image.height / image.width;
   const surface = captureSurface(worldPoint, worldNormal, up, width, height, frame.width);
-  const geometry = new THREE.PlaneGeometry(width, height, 64, 64);
+  const geometry = new THREE.PlaneGeometry(width, height, 128, 128);
   const positions = geometry.attributes.position;
   const uvs = geometry.attributes.uv;
   const foldAmount = (entry.folds ?? 35) / 100;
   const clearance = frame.width * 0.0009;
   const lift = width * 0.026 * foldAmount;
   const point = new THREE.Vector3();
+  const flat = new THREE.Vector3();
+  const edgeState = { outward: new THREE.Vector3() };
+  const anchorDepth = worldPoint.clone().sub(frame.center).dot(worldNormal);
+  const bendRadius = frame.front + clearance;
+  let backSurface = null, wrappedVertices = 0;
   for (let i = 0; i < positions.count; i++) {
     const u = uvs.getX(i), v = uvs.getY(i);
     const x = (u - 0.5) * width, y = (v - 0.5) * height;
@@ -252,8 +304,28 @@ function rebuild(entry) {
     const secondary = Math.exp(-Math.pow(((v - 0.5) - 0.32 * (u - 0.5) + 0.15) / 0.026, 2)) * Math.pow(Math.sin(Math.PI * u), 2) * 0.45;
     const corner = Math.pow(Math.max(0, (u + v - 1.35) / 0.65), 2) * 1.6;
     const ripple = Math.pow(Math.sin((u * 2.7 + v * 1.3) * Math.PI), 2) * Math.pow(Math.abs(u - 0.5) * 2, 8) * 0.18;
-    const elevation = surface(u, v) + clearance + lift * (crease + secondary + corner + ripple);
-    point.copy(worldPoint).addScaledVector(right, x).addScaledVector(up, y).addScaledVector(worldNormal, elevation);
+    const folds = lift * (crease + secondary + corner + ripple);
+    flat.copy(worldPoint).addScaledVector(right, x).addScaledVector(up, y);
+    const edge = boundaryAt(frame, flat, edgeState);
+    if (edge.distance <= 0) {
+      const faceHeight = anchorDepth + surface(u, v);
+      point.copy(frame.center).addScaledVector(frame.right, edge.x).addScaledVector(frame.up, edge.y)
+        .addScaledVector(worldNormal, Math.max(frame.front, faceHeight) + clearance + folds);
+    } else {
+      wrappedVertices++;
+      const angle = Math.min(Math.PI, edge.distance / bendRadius);
+      const remainder = Math.max(0, edge.distance - Math.PI * bendRadius);
+      const across = bendRadius * Math.sin(angle) - remainder;
+      const px = edge.x - edge.nx * edge.distance + edge.nx * across;
+      const py = edge.y - edge.ny * edge.distance + edge.ny * across;
+      let depth = bendRadius * Math.cos(angle);
+      if (angle === Math.PI) {
+        backSurface ||= captureSurface(frame.center, worldNormal.clone().negate(), frame.up, frame.width, frame.height, frame.width);
+        depth = -Math.max(-frame.back, backSurface(0.5 - px / frame.width, 0.5 + py / frame.height)) - clearance;
+      }
+      point.copy(frame.center).addScaledVector(frame.right, px).addScaledVector(frame.up, py).addScaledVector(worldNormal, depth);
+      point.addScaledVector(edge.outward, Math.sin(angle) * folds).addScaledVector(worldNormal, Math.cos(angle) * folds);
+    }
     positions.setXYZ(i, point.x, point.y, point.z);
   }
   geometry.applyMatrix4(target.matrixWorld.clone().invert());
@@ -269,6 +341,8 @@ function rebuild(entry) {
   entry.decal.renderOrder = 10 + entries().indexOf(entry); entry.decal.userData.cardSticker = true;
   entry.decal.userData.noHit = true;
   entry.decal.userData.folds = entry.folds ?? 35;
+  entry.decal.userData.wrappedVertices = wrappedVertices;
+  entry.decal.userData.edgeWrap = true;
   target.add(entry.decal); render();
 }
 async function place(event) {
