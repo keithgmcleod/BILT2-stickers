@@ -10,7 +10,7 @@ const assets = [
   ['v-ring-seal-bilt-neighborhood', 'Bilt neighborhood'],
   ['v-diecut-rent-day', 'Rent day'],
   ['v-badge-have-a-good-rent-day', 'Have a good rent day'],
-  ['v-diecut-home', 'Home'],
+  ['v-diecut-neighborhood', 'Neighbourhood'],
   ['v-shield-bilt-10x', 'Bilt 10x'],
   ['v-hello-soho', 'Hello Soho'],
 ];
