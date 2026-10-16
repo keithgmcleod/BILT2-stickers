@@ -1,6 +1,6 @@
 # BILT card sticker viewer
 
-Blue and Obsidian 3D cards with six surface-attached sticker designs, image import, size, rotation and folds controls, undo, and separate placements when switching cards. Stickers bridge raised lettering and chip geometry as flexible vinyl sheets, with creases and lifted edges. Click a sticker, then click the card. Choose **Done placing** to return to pointer tilt. Refreshing resets placements. Imported images stay in the browser.
+Blue and Obsidian 3D cards with six surface-attached sticker designs, image import, size, rotation and folds controls, undo, and separate placements when switching cards. Stickers bridge raised lettering and chip geometry as flexible vinyl sheets, with creases and lifted edges. Pick a design, then click an empty card area to add it. Click and drag any existing sticker to reposition it; its grabbed point stays under the pointer. The controls adjust the selected sticker, including older stickers. Dragging pauses card tilt and reshapes the sheet over its new surface. Dropping outside the card keeps the last valid position. Choose **Done placing** to return to pointer tilt. Refreshing resets placements. Imported images stay in the browser.
 
 ## Publish
 

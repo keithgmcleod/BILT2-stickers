@@ -20,6 +20,87 @@ const textureCache = new Map();
 const cards = new Map();
 let scene, model, meshes = [], activeDesign = null, ready = false, generation = 0;
 let surfaceRenderer;
+let selectedEntry = null, drag = null, dragFrame = 0, suppressClickUntil = 0;
+const alphaMasks = new WeakMap();
+
+function pointerRay(event) {
+  model.updateWorldMatrix(true, true);
+  const rect = viewer.getBoundingClientRect(), ray = new THREE.Raycaster();
+  ray.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1,
+    1 - (event.clientY - rect.top) / rect.height * 2), scene.camera);
+  return ray;
+}
+function pickSticker(ray) {
+  const hits = ray.intersectObjects(entries().map(entry => entry.decal).filter(Boolean), false);
+  for (const hit of hits) {
+    const texture = hit.object.material.map;
+    if (!alphaMasks.has(texture)) {
+      const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      context.drawImage(texture.image, 0, 0, 256, 256);
+      alphaMasks.set(texture, context.getImageData(0, 0, 256, 256).data);
+    }
+    const x = THREE.MathUtils.clamp(Math.floor(hit.uv.x * 256), 0, 255);
+    const y = THREE.MathUtils.clamp(Math.floor((1 - hit.uv.y) * 256), 0, 255);
+    if (alphaMasks.get(texture)[(y * 256 + x) * 4 + 3] > 12) {
+      return entries().find(entry => entry.decal === hit.object);
+    }
+  }
+  return null;
+}
+function selectSticker(entry) {
+  selectedEntry = entry;
+  sizeInput.value = entry.size; rotationInput.value = entry.rotation; foldsInput.value = entry.folds ?? 35;
+  message('Sticker selected. Drag to move it, or adjust size, rotation and folds.');
+}
+function moveDraggedSticker() {
+  dragFrame = 0;
+  if (!drag || !ready) return;
+  const hit = pointerRay(drag.pointer).intersectObjects(meshes, false).find(result => result.face);
+  if (!hit) return; // Keep the last valid placement when the pointer leaves the card.
+  const target = meshes[drag.entry.meshIndex];
+  drag.entry.point.copy(target.worldToLocal(hit.point.clone().add(drag.offset)));
+  rebuild(drag.entry);
+}
+function finishDrag(event) {
+  if (!drag || (event?.pointerId != null && drag.id !== event.pointerId)) return;
+  if (event?.type === 'pointerup') {
+    drag.pointer = { clientX: event.clientX, clientY: event.clientY };
+    if (dragFrame) cancelAnimationFrame(dragFrame);
+    moveDraggedSticker();
+  } else if (dragFrame) cancelAnimationFrame(dragFrame);
+  dragFrame = 0;
+  const id = drag.id; drag = null; suppressClickUntil = performance.now() + 500;
+  viewer.classList.remove('dragging-sticker');
+  if (viewer.hasPointerCapture(id)) viewer.releasePointerCapture(id);
+  message('Sticker selected. Drag to move it, or adjust size, rotation and folds.');
+}
+viewer.addEventListener('pointerdown', event => {
+  if (!ready || event.button !== 0 || !event.isPrimary) return;
+  const ray = pointerRay(event), entry = pickSticker(ray);
+  if (!entry) { selectedEntry = null; suppressClickUntil = 0; return; }
+  const hit = ray.intersectObjects(meshes, false).find(result => result.face);
+  if (!hit) return;
+  selectSticker(entry);
+  const center = meshes[entry.meshIndex].localToWorld(entry.point.clone());
+  drag = { id: event.pointerId, entry, offset: center.sub(hit.point), pointer: { clientX: event.clientX, clientY: event.clientY } };
+  viewer.classList.add('dragging-sticker'); viewer.setPointerCapture(event.pointerId);
+  event.preventDefault();
+});
+viewer.addEventListener('pointermove', event => {
+  if (!ready) return;
+  if (drag) {
+    if (event.pointerId !== drag.id) return;
+    drag.pointer = { clientX: event.clientX, clientY: event.clientY };
+    if (!dragFrame) dragFrame = requestAnimationFrame(moveDraggedSticker);
+    event.preventDefault();
+  } else viewer.classList.toggle('over-sticker', !!pickSticker(pointerRay(event)));
+});
+viewer.addEventListener('pointerup', finishDrag);
+viewer.addEventListener('pointercancel', finishDrag);
+viewer.addEventListener('lostpointercapture', finishDrag);
+window.addEventListener('blur', () => finishDrag());
+viewer.addEventListener('pointerleave', () => viewer.classList.remove('over-sticker'));
 
 function cardFrame(referenceNormal) {
   let body, area = 0, dimensions;
@@ -113,6 +194,7 @@ const entries = () => cards.get(cardKey()) || [];
 function message(text) { status.textContent = text; }
 function render() { scene?.queueRender(); }
 function setDesign(design) {
+  selectedEntry = null;
   activeDesign = design;
   viewer.classList.toggle('placing-sticker', !!design);
   picker.querySelectorAll('button').forEach((button, i) => button.setAttribute('aria-pressed', String(designs[i] === design)));
@@ -190,6 +272,7 @@ function rebuild(entry) {
   target.add(entry.decal); render();
 }
 async function place(event) {
+  if (performance.now() < suppressClickUntil) return;
   if (!ready || !activeDesign) return;
   const rect = viewer.getBoundingClientRect();
   const ray = new THREE.Raycaster(); model.updateWorldMatrix(true, true);
@@ -204,7 +287,7 @@ async function place(event) {
     entry.texture = await textureFor(design);
     if (generation !== stamp || cardKey() !== key) return;
     if (!cards.has(key)) cards.set(key, []);
-    cards.get(key).push(entry); rebuild(entry);
+    cards.get(key).push(entry); rebuild(entry); selectedEntry = entry;
     message(`${design.label} attached. Adjust size, rotation or folds, or click to place another.`);
   } catch (error) { console.error(error); message('Could not load this sticker. Try importing a PNG or WebP.'); }
 }
@@ -222,6 +305,7 @@ viewer.addEventListener('load', () => {
 // Detach custom geometry before model-viewer caches/clones a glTF scene. Its
 // material API only knows the original glTF primitive associations.
 function releaseSheets() {
+  finishDrag(); selectedEntry = null;
   ready = false; generation++;
   for (const list of cards.values()) list.forEach(disposeDecal);
 }
@@ -233,14 +317,16 @@ new MutationObserver(releaseSheets).observe(viewer, { attributes: true, attribut
 document.querySelector('#sticker-done').addEventListener('click', () => setDesign(null));
 document.querySelector('#sticker-undo').addEventListener('click', () => {
   generation++; const entry = entries().pop(); if (entry) disposeDecal(entry);
+  if (selectedEntry === entry) selectedEntry = null;
   render(); message(entry ? 'Last sticker removed.' : 'This card has no stickers yet.');
 });
 document.querySelector('#sticker-clear').addEventListener('click', () => {
+  selectedEntry = null;
   generation++; entries().forEach(disposeDecal); cards.set(cardKey(), []); render(); message('Stickers cleared from this card.');
 });
 for (const input of [sizeInput, rotationInput, foldsInput]) input.addEventListener('input', () => {
   if (!ready) return;
-  const entry = entries().at(-1); if (!entry) return;
+  const entry = selectedEntry || entries().at(-1); if (!entry) return;
   entry.size = Number(sizeInput.value); entry.rotation = Number(rotationInput.value); entry.folds = Number(foldsInput.value); rebuild(entry);
 });
 document.querySelector('#sticker-file').addEventListener('change', async event => {

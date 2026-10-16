@@ -51,6 +51,7 @@ variantButtons.forEach((button) => {
 });
 
 function updateCardTilt() {
+  if (viewer.classList.contains('dragging-sticker')) { frame = 0; return; }
   currentPointer.x += (pointer.x - currentPointer.x) * 0.1;
   currentPointer.y += (pointer.y - currentPointer.y) * 0.1;
 
@@ -78,7 +79,7 @@ function queueCardTilt() {
 }
 
 function moveWithPointer(event) {
-  if (viewer.classList.contains('placing-sticker')) return;
+  if (viewer.classList.contains('placing-sticker') || viewer.classList.contains('dragging-sticker')) return;
   const bounds = stage.getBoundingClientRect();
   const inside = event.clientX >= bounds.left && event.clientX <= bounds.right
     && event.clientY >= bounds.top && event.clientY <= bounds.bottom;

@@ -7,6 +7,7 @@ Verified on October 16, 2026 in headless Google Chrome:
 - Folds adjustment changes the actual vertex positions.
 - A sticker centered on the Obsidian chip spans its surrounding card surface. Twenty-five sampled points were checked against the original geometry; the smallest measured clearance was approximately 0.00101 in the model's units, with no intersection at the sampled points.
 - Separate placements survive switching between cards.
+- Mouse dragging repositions the existing sheet without adding a new sticker. Clicking an older sticker selects it; size adjustments leave the other sticker unchanged. Picking ignores transparent cutout pixels.
 - Imported WebP artwork, undo, clear, and mobile width checks pass.
 - No new browser application errors or failed application assets were observed.
 
