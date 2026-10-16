@@ -1,6 +1,6 @@
 # BILT card sticker viewer
 
-Blue and Obsidian 3D cards with six surface-attached sticker designs, image import, size and rotation controls, undo, and separate placements when switching cards. Click a sticker, then click the card. Choose **Done placing** to return to pointer tilt. Refreshing resets placements. Imported images stay in the browser.
+Blue and Obsidian 3D cards with six surface-attached sticker designs, image import, size, rotation and folds controls, undo, and separate placements when switching cards. Stickers bridge raised lettering and chip geometry as flexible vinyl sheets, with creases and lifted edges. Click a sticker, then click the card. Choose **Done placing** to return to pointer tilt. Refreshing resets placements. Imported images stay in the browser.
 
 ## Publish
 
@@ -21,7 +21,7 @@ Open http://localhost:8000. No npm installation is needed. The build downloads t
 
 ## Implementation and validation
 
-Three.js DecalGeometry clips sticker meshes to the hit surface. Decals are parented to the card geometry and follow its motion. This is a surface decal implementation, not the full Street Stickers foil/wrinkle/draping renderer. Geometry attachment uses an isolated bridge to the existing pinned model-viewer 4.1.0 scene; retest before upgrading.
+An orthographic height pass captures the whole card, including separate chip and logo meshes and previous stickers. A subdivided sheet bridges the captured surface, with clearance, deterministic folds and a lifted corner. Texture coordinates stay on the sheet, and the material has a vinyl finish with a white reverse side. Sheets are parented to the card geometry and follow its motion. This is not the full Street Stickers foil/draping renderer. Geometry attachment uses an isolated bridge to the existing pinned model-viewer 4.1.0 scene; retest before upgrading. The height pass uses a separate offscreen WebGL context.
 
 Browser checks cover both card variants, placement, tilt, size, rotation, switching, imports, undo, clear, and mobile width. The original BILT2 repository is unchanged.
 
